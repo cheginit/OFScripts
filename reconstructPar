@@ -5,13 +5,8 @@ cd ${0%/*} || exit 1    # Run from this directory
 # Source tutorial run functions
 . $WM_PROJECT_DIR/bin/tools/RunFunctions
 
-#Reading number of cores (NC) from input or consider a default value
-USAGE="Number of cores is considered 4, as it is not specificed \nUsage: $0 <Number of cores>"
-NC=$1
-if [ $# -ne 1 ]; then
-    echo $USAGE
-    NC=4
-fi
+#Reading number of cores (NC) from decomposeParDict
+NC=$(sed -ne 's/^ *numberOfSubdomains\s*\([0-9]*\)\s*;.*$/\1/p' system/decomposeParDict)
 
 #Reading the latest time that is simulated from processor directories (ET)
 rm -f log.reconstructPar
@@ -24,16 +19,16 @@ foamListTimes > simList
 LSim=$(grep "." simList | tail -1)
 rm -f simList
 
-#Calculating time step (TS) for reconstruction processes
-TS=$(awk "BEGIN { print $ET/$NC }")
-
 #Reading start time (ST) from controlDict
-ST=$(sed -ne 's/^ *startTime\s*\([0.-9]*\)\s*;.*$/\1/p' system/controlDict)
+ST=$(sed -ne 's/^ *startTime\s*\([0.-9.]*\)\s*;.*$/\1/p' system/controlDict)
 
 #Checking whether the simulation begins from start time or latest time
 if [[ $LSim > $ST ]]; then
 	ST=$LSim
 fi
+
+#Calculating time step (TS) for reconstruction processes
+TS=$(awk "BEGIN { print ($ET-$ST)/$NC }")
 
 #Seting lower range (NP) and upper range (NX) of reconstruction processes
 NP=$ST
