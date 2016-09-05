@@ -7,24 +7,23 @@ cd ${0%/*} || exit 1    # Run from this directory
 
 #Reading number of cores (NC) from decomposeParDict
 NC=$(sed -ne 's/^ *numberOfSubdomains\s*\([0-9]*\)\s*;.*$/\1/p' system/decomposeParDict)
+#Doubling NC to use virtual cores
+NC=$(awk "BEGIN { print (2*$NC) }")
+
+rm -f log.reconstructPar
 
 #Reading the latest time that is simulated from processor directories (ET)
-rm -f log.reconstructPar
-foamListTimes -processor > processorList
-ET=$(grep "." processorList | tail -1)
-rm -f processorList
-
-#Reading the latest time that is simulated and reconstructed from the case directory (LSim)
-foamListTimes > simList
-LSim=$(grep "." simList | tail -1)
-rm -f simList
+ET=$(foamListTimes -processor | grep "." | sort -nr | head -1)
 
 #Reading start time (ST) from controlDict
-ST=$(sed -ne 's/^ *startTime\s*\([0.-9.]*\)\s*;.*$/\1/p' system/controlDict)
+ST=$(foamListTimes -processor | grep "." | sort -n | head -1)
 
-#Checking whether the simulation begins from start time or latest time
-if [[ $LSim > $ST ]]; then
-	ST=$LSim
+#Reading the latest time that is reconstructed from the case directory (LR)
+LR=$(foamListTimes | grep "." | tail -1)
+
+#Checking whether the simulation began from start time or latest time
+if [[ $LR > $ST ]]; then
+	ST=$LR
 fi
 
 #Calculating time step (TS) for reconstruction processes
