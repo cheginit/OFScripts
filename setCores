@@ -1,0 +1,7 @@
+#!/bin/sh
+
+CS=$(lscpu | grep 'Core(s) per socket:'| grep -o '[0-9]*')
+So=$(lscpu | grep 'Socket(s):'| grep -o '[0-9]*')
+cr=$(awk "BEGIN { print $CS*$So }")
+
+sed -i 's/^\(numberOfSubdomains\s*\).*/\1'"$cr"';/' system/decomposeParDict

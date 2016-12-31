@@ -1,0 +1,49 @@
+#!/bin/bash
+
+cd ${0%/*} || exit 1    # Run from this directory
+
+# Source tutorial run functions
+. $WM_PROJECT_DIR/bin/tools/RunFunctions
+
+#Determining number of cores (NC) from lscpu
+NC=$(lscpu | grep -m 1 'CPU(s)'| grep -o '[0-9]*')
+
+rm -f log.reconstructPar
+
+#Reading the latest time that is simulated from processors directories (ET)
+ET=$(foamListTimes -processor | grep "." | sort -nr | head -1)
+
+#Reading start time (ST) from controlDict
+ST=$(foamListTimes -processor | grep "." | sort -n | head -1)
+
+#Reading the latest time that is reconstructed from the case directory (LR)
+LR=$(foamListTimes | grep "." | tail -1)
+
+#Checking whether the simulation began from start time or latest time
+if [[ $LR > $ST ]]; then
+	ST=$LR
+fi
+
+#Calculating time step (TS) for reconstruction processes
+TS=$(awk "BEGIN { print ($ET-$ST)/$NC }")
+
+#Seting lower range (NP) and upper range (NX) of reconstruction processes
+NP=$ST
+NX=$(awk "BEGIN { print $NP+$TS }")
+
+#Begining reconstruction processes
+for i in `seq 1 $NC`;
+do
+	if [[ $i -lt $NC ]]; then
+		echo "Running reconstructPar from $NP to $NX"
+		reconstructPar -newTimes -time $NP:$NX >>  log.reconstructPar &
+	else
+		echo "Running reconstructPar from $NP to $ET"
+		reconstructPar -newTimes -time $NP:$ET >> log.reconstructPar
+	fi
+	
+	NP=$NX
+	NX=$(awk "BEGIN { print $NP+$TS }")
+done
+
+#------------------------------------------------------------------------------

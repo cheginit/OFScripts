@@ -1,0 +1,45 @@
+#!/bin/sh
+
+echo "Removing existing mesh"
+./Allclean
+rm -rf constant/polyMesh constant/extendedFeatureEdgeMesh constant/triSurface/*.gz *.log
+
+echo "Setting number of availabe cores in decomposeParDict using lscpu"
+./setCores
+
+echo "Running blockMesh"
+blockMesh > meshLog
+
+echo "Running surfaceFeatureExtract"
+surfaceFeatureExtract >> meshLog
+
+echo "Running decomposition"
+decomposePar > decomposePar.log
+
+cr=$(sed -ne 's/^ *numberOfSubdomains\s*\([0-9]*\)\s*;.*$/\1/p' system/decomposeParDict)
+
+echo "Changing scotch to ptscotch in decomposeParDict for snappyHexMesh"
+sed -i 's/\bscotch\b/ptscotch/g' system/decomposeParDict
+
+echo "Running snappyHexMesh"
+mpirun -np $cr snappyHexMesh -overwrite -parallel > snappyHexMesh.log
+
+grep "Finished meshing in =" meshLog -B 1
+
+echo "Reconstruction"
+reconstructParMesh -constant > reconstructPar.log
+
+#echo "Reordering boundary types"
+#changeDictionary > changeDictionary.log
+
+echo "RenumberMesh"
+renumberMesh -constant -overwrite > renumberMesh.log
+
+echo "\nChecking mesh quality"
+checkMesh >> meshLog
+grep "Mesh non-orthogonality Max" meshLog
+grep "Max skewness =" meshLog
+grep "cells:            " meshLog
+
+echo "Changing back to scotch from ptscotch in decomposeParDict"
+sed -i 's/\bptscotch\b/scotch/g' system/decomposeParDict
